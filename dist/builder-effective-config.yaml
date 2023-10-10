@@ -1,0 +1,25 @@
+directories:
+  output: dist
+  buildResources: build
+appId: tokyo.laf
+productName: LaF
+linux:
+  artifactName: LaF_Setup_Linux_${arch}.${ext}
+  target:
+    - target: appImage
+      arch:
+        - x64
+  category: network
+mac:
+  artifactName: LaF_Setup_macOS_${arch}.${ext}
+  target:
+    - target: dmg
+      arch:
+        - arm64
+nsis:
+  artifactName: LaF_Setup_Windows_${arch}.${ext}
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+files: []
+electronVersion: 12.0.0-nightly.20201116
