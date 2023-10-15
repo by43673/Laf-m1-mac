@@ -48,10 +48,7 @@ log.info(`UI Language: ${config.get('lang')}`);
 
 const initFlags = () => {
     let flagsInfo = 'Chromium Options:';
-    const chromiumFlags = [
-       ['disable-frame-rate-limit', null, config.get('unlimitedFPS', true)],
-	['disable-gpu-vsync', null, config.get('unlimitedFPS', true)],
-        ['max-gum-fps', '9999', config.get('unlimitedFPS', true)],
+   	const chromiumFlags = [
 	['disable-features', 'UsePreferredIntervalForVideo', config.get('unlimitedFPS', true)],
 	['disable-blink-features', 'LayoutNGFieldset', config.get('unlimitedFPS', true)],
 	['enable-blink-features', 'PaintHolding', config.get('unlimitedFPS', true)],
@@ -73,6 +70,9 @@ const initFlags = () => {
 	['disable-background-timer-throttling', null, config.get('unlimitedFPS', true)],
 	['disable-renderer-backgrounding', null, config.get('unlimitedFPS', true)],
 	['disable-accelerated-2d-canvas', 'true', !config.get('acceleratedCanvas', true)],
+	['disable-frame-rate-limit', null, config.get('unlimitedFPS', true)],
+	['disable-gpu-vsync', null, config.get('unlimitedFPS', true)],
+        ['max-gum-fps', '9999', config.get('unlimitedFPS', true)],
     ];
     chromiumFlags.forEach((f) => {
         const isEnable = f[2] ? 'Enable' : 'Disable';
@@ -369,26 +369,6 @@ ipcMain.on('exitClient', () => {
 ipcMain.on('copyPCInfo', () => {
     const versions = `LaF v${app.getVersion()}${devMode ? '@DEV' : ''}\n    - electron@${process.versions.electron}\n    - nodejs@${process.versions.node}\n    - Chromium@${process.versions.chrome}`;
     const uiLang = `UI Language: ${config.get('lang')}`;
-    let flagsInfo = 'Chromium Options:';
-    const chromiumFlags = [
-        // ['オプション', null('オプション2'), 有効[bool]]
-        // FPS解放周り
-        ['disable-frame-rate-limit', null, config.get('unlimitedFPS', true)],
-        ['disable-gpu-vsync', null, config.get('unlimitedFPS', true)],
-        // 描画関係
-        ['use-angle', config.get('angleType', 'default'), true],
-        ['enable-webgl2-compute-context', null, config.get('webgl2Context', true)],
-        ['disable-accelerated-2d-canvas', 'true', !config.get('acceleratedCanvas', true)],
-        // ウィンドウキャプチャに必要な設定(win32でのみ動作する。frznさんに感謝)
-        ['in-process-gpu', null, platformType === 'win32' ? true : false],
-        // その他
-        ['autoplay-policy', 'no-user-gesture-required', config.get('autoPlay', true)],
-    ];
-    chromiumFlags.forEach((f) => {
-        const isEnable = f[2] ? 'Enable' : 'Disable';
-        flagsInfo += `\n    - ${f[0]}, ${f[1]}: ${isEnable}`;
-    });
-    // OSバージョンの取得
     const osRelease = os.release();
     let osVersion = '';
     if (osRelease.startsWith('6.1')) osVersion = 'Windows 7';
