@@ -49,6 +49,13 @@ log.info(`UI Language: ${config.get('lang')}`);
 const initFlags = () => {
     let flagsInfo = 'Chromium Options:';
    	const chromiumFlags = [
+	['disable-frame-rate-limit', null, config.get('unlimitedFPS', true)],
+	['disable-gpu-vsync', null, config.get('unlimitedFPS', true)],
+        ['max-gum-fps', '9999', config.get('unlimitedFPS', true)],
+	['use-angle', config.get('angleType', 'default'), true],
+        ['disable-2d-canvas-clip-aa', null, config.get('webgl2Context', true)],
+        ['in-process-gpu', null, platformType === 'win32' ? true : false],
+        ['autoplay-policy', 'no-user-gesture-required', config.get('autoPlay', true)],
 	['disable-features', 'UsePreferredIntervalForVideo', config.get('unlimitedFPS', true)],
 	['disable-blink-features', 'LayoutNGFieldset', config.get('unlimitedFPS', true)],
 	['enable-blink-features', 'PaintHolding', config.get('unlimitedFPS', true)],
@@ -59,7 +66,6 @@ const initFlags = () => {
 	['disable-breakpad', null, config.get('unlimitedFPS', true)],
 	['disable-component-update', null, config.get('unlimitedFPS', true)],
 	['disable-bundled-ppapi-flash', null, config.get('unlimitedFPS', true)],
-	['disable-2d-canvas-clip-aa', null, config.get('unlimitedFPS', true)],
 	['disable-hang-monitor', null, config.get('unlimitedFPS', true)],
 	['webrtc-max-cpu-consumption-percentage', '100', config.get('unlimitedFPS', true)],
 	['enable-highres-timer', null, config.get('unlimitedFPS', true)],
@@ -70,9 +76,6 @@ const initFlags = () => {
 	['disable-background-timer-throttling', null, config.get('unlimitedFPS', true)],
 	['disable-renderer-backgrounding', null, config.get('unlimitedFPS', true)],
 	['disable-accelerated-2d-canvas', 'true', !config.get('acceleratedCanvas', true)],
-	['disable-frame-rate-limit', null, config.get('unlimitedFPS', true)],
-	['disable-gpu-vsync', null, config.get('unlimitedFPS', true)],
-        ['max-gum-fps', '9999', config.get('unlimitedFPS', true)],
     ];
     chromiumFlags.forEach((f) => {
         const isEnable = f[2] ? 'Enable' : 'Disable';
