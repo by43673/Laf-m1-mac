@@ -47,18 +47,15 @@ const langPack = require(config.get('lang', 'en_US') === 'ja_JP' ? './lang/ja_JP
 log.info(`UI Language: ${config.get('lang')}`);
 
 const initFlags = () => {
-    let flagsInfo = 'Chromium Options:';
-   	const chromiumFlags = [
+	const chromiumFlags = [
 	['disable-frame-rate-limit', null, config.get('unlimitedFPS', true)],
 	['disable-gpu-vsync', null, config.get('unlimitedFPS', true)],
         ['max-gum-fps', '9999', config.get('unlimitedFPS', true)],
-	['use-angle', config.get('angleType', 'default'), true],
-        ['disable-2d-canvas-clip-aa', null, config.get('webgl2Context', true)],
-        ['in-process-gpu', null, platformType === 'win32' ? true : false],
-        ['autoplay-policy', 'no-user-gesture-required', config.get('autoPlay', true)],
 	['disable-features', 'UsePreferredIntervalForVideo', config.get('unlimitedFPS', true)],
-	['disable-blink-features', 'LayoutNGFieldset', config.get('unlimitedFPS', true)],
-	['enable-blink-features', 'PaintHolding', config.get('unlimitedFPS', true)],
+	['disable-features', 'LayoutNGFieldset', config.get('unlimitedFPS', true)],
+	['disable-blink-features', 'CompositeSVG', config.get('unlimitedFPS', true)],
+	['disable-features', 'FragmentItem', config.get('unlimitedFPS', true)],
+	['disable-features', 'EditingNG', config.get('unlimitedFPS', true)],
 	['disable-print-preview', null, config.get('unlimitedFPS', true)],
 	['disable-metrics-repo', null, config.get('unlimitedFPS', true)],
 	['disable-metrics', null, config.get('unlimitedFPS', true)],
@@ -66,6 +63,7 @@ const initFlags = () => {
 	['disable-breakpad', null, config.get('unlimitedFPS', true)],
 	['disable-component-update', null, config.get('unlimitedFPS', true)],
 	['disable-bundled-ppapi-flash', null, config.get('unlimitedFPS', true)],
+	['disable-2d-canvas-clip-aa', null, config.get('webgl2Context', true)],
 	['disable-hang-monitor', null, config.get('unlimitedFPS', true)],
 	['webrtc-max-cpu-consumption-percentage', '100', config.get('unlimitedFPS', true)],
 	['enable-highres-timer', null, config.get('unlimitedFPS', true)],
@@ -75,11 +73,13 @@ const initFlags = () => {
 	['ignore-gpu-blocklist', null, config.get('unlimitedFPS', true)],
 	['disable-background-timer-throttling', null, config.get('unlimitedFPS', true)],
 	['disable-renderer-backgrounding', null, config.get('unlimitedFPS', true)],
-	['disable-accelerated-2d-canvas', 'true', !config.get('acceleratedCanvas', true)],
+	['use-angle', config.get('angleType', 'default'), true],
+   	['in-process-gpu', null, platformType === 'win32' ? true : false],
+        ['autoplay-policy', 'no-user-gesture-required', config.get('autoPlay', true)],
+        ['disable-accelerated-2d-canvas', 'true', !config.get('acceleratedCanvas', true)],	
     ];
     chromiumFlags.forEach((f) => {
         const isEnable = f[2] ? 'Enable' : 'Disable';
-        flagsInfo += `\n    - ${f[0]}, ${f[1]}: ${isEnable}`;
         if (f[2]) {
             if (f[1] === null) {
                 app.commandLine.appendSwitch(f[0]);
@@ -89,7 +89,6 @@ const initFlags = () => {
             }
         }
     });
-    log.info(flagsInfo);
 };
 initFlags();
 
@@ -406,12 +405,12 @@ ipcMain.on('copyPCInfo', () => {
                     }
                 });
             }
-            const sysInfo = '=====Client Information=====\n' + versions + '\n' + flagsInfo + '\n' + uiLang + '\n' + memUsageTxt + '\n=====System Information=====\n' + osInfoTxt + '\n' + cpuInfoTxt + '\n' + memInfoTxt + '\n' + gpuInfoTxt;
+            const sysInfo = '=====Client Information=====\n' + versions + '\n' + '\n' + uiLang + '\n' + memUsageTxt + '\n=====System Information=====\n' + osInfoTxt + '\n' + cpuInfoTxt + '\n' + memInfoTxt + '\n' + gpuInfoTxt;
             clipboard.writeText(sysInfo);
         });
     }
     else {
-        const sysInfo = '=====Client Information=====\n' + versions + '\n' + flagsInfo + '\n' + uiLang + '\n' + memUsageTxt + '\n=====System Information=====\n' + osInfoTxt + '\n' + cpuInfoTxt + '\n' + memInfoTxt + '\n' + 'GPU: Not Supported';
+        const sysInfo = '=====Client Information=====\n' + versions + '\n' + '\n' + uiLang + '\n' + memUsageTxt + '\n=====System Information=====\n' + osInfoTxt + '\n' + cpuInfoTxt + '\n' + memInfoTxt + '\n' + 'GPU: Not Supported';
         clipboard.writeText(sysInfo);
     }
 });
