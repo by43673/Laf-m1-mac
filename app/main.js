@@ -53,7 +53,6 @@ const initFlags = () => {
         ['max-gum-fps', '9999', config.get('unlimitedFPS', true)],
 	['disable-features', 'UsePreferredIntervalForVideo', config.get('unlimitedFPS', true)],
 	['disable-features', 'LayoutNGFieldset', config.get('unlimitedFPS', true)],
-	['disable-blink-features', 'CompositeSVG', config.get('unlimitedFPS', true)],
 	['disable-features', 'FragmentItem', config.get('unlimitedFPS', true)],
 	['disable-features', 'EditingNG', config.get('unlimitedFPS', true)],
 	['disable-print-preview', null, config.get('unlimitedFPS', true)],
