@@ -52,9 +52,16 @@ const initFlags = () => {
 	['disable-gpu-vsync', null, config.get('unlimitedFPS', true)],
         ['max-gum-fps', '9999', config.get('unlimitedFPS', true)],
 	['disable-features', 'UsePreferredIntervalForVideo', config.get('unlimitedFPS', true)],
-	['disable-features', 'LayoutNGFieldset', config.get('unlimitedFPS', true)],
-	['disable-features', 'FragmentItem', config.get('unlimitedFPS', true)],
-	['disable-features', 'EditingNG', config.get('unlimitedFPS', true)],
+	['disable-blink-features', 'LayoutNGFieldset', config.get('unlimitedFPS', true)],
+	['disable-blink-features', 'LayoutNGFragmentItem', config.get('unlimitedFPS', true)],
+	['disable-blink-features', 'EditingNG', config.get('unlimitedFPS', true)],
+	['disable-blink-features', 'LayoutNGForControls', config.get('unlimitedFPS', true)],
+	['disable-blink-features', 'LayoutNGLayoutOverflow', config.get('unlimitedFPS', true)],
+	['disable-blink-features', 'LayoutNGWebkitBox', config.get('unlimitedFPS', true)],
+	['disable-blink-features', 'CompositeSVG', config.get('unlimitedFPS', true)],
+	['disable-blink-features', 'CompositeRelativeKeyframes', config.get('unlimitedFPS', true)],
+	['disable-blink-features', 'LayoutShiftAttribution', config.get('unlimitedFPS', true)],
+	['disable-blink-features', 'LayoutNGRuby', config.get('unlimitedFPS', true)],
 	['disable-print-preview', null, config.get('unlimitedFPS', true)],
 	['disable-metrics-repo', null, config.get('unlimitedFPS', true)],
 	['disable-metrics', null, config.get('unlimitedFPS', true)],
@@ -74,8 +81,7 @@ const initFlags = () => {
 	['disable-renderer-backgrounding', null, config.get('unlimitedFPS', true)],
 	['use-angle', config.get('angleType', 'default'), true],
    	['in-process-gpu', null, platformType === 'win32' ? true : false],
-        ['autoplay-policy', 'no-user-gesture-required', config.get('autoPlay', true)],
-        ['disable-accelerated-2d-canvas', 'true', !config.get('acceleratedCanvas', true)],	
+        ['autoplay-policy', 'no-user-gesture-required', config.get('autoPlay', true)],	
     ];
     chromiumFlags.forEach((f) => {
         const isEnable = f[2] ? 'Enable' : 'Disable';
@@ -443,6 +449,27 @@ ipcMain.handle('linkTwitch', () => {
 
 // App
 app.on('ready', () => {
+	const filter = {
+    urls: ['*://*.pollfish.com/*',
+			'*://www.paypalobjects.com/*',
+			'*://fran-cdn.frvr.com/prebid*',
+			'*://fran-cdn.frvr.com/gpt_*',
+			'*://c.amazon-adsystem.com/*',
+			'*://fran-cdn.frvr.com/pubads_*',
+			'*://platform.twitter.com/*',
+			'*://cookiepro.com/*',
+			'*://*.cookiepro.com/*',
+			'*://www.googletagmanager.com/*',
+			'*://storage.googleapis.com/pollfish_production/*',
+			'*://krunker.io/libs/frvr-channel-web*',
+			'*://apis.google.com/js/platform.js',
+			'*://imasdk.googleapis.com/*'],
+  };
+
+  session.defaultSession.webRequest.onBeforeRequest(filter, (details, callback) => {
+    // Cancel the request to block the ad
+    callback({ cancel: true });
+  });
     protocol.registerFileProtocol('laf', (request, callback) => callback(decodeURI(request.url.replace(/^laf:\//, ''))));
     if (isRPCEnabled) {
         let loggedIn;
