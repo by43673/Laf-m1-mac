@@ -1,7 +1,17 @@
 require('v8-compile-cache');
 const path = require('path');
-const { app, BrowserWindow, ipcMain, protocol, shell, dialog, session, clipboard } = require('electron');
-const store = require('electron-store');
+const {
+    app,
+    BrowserWindow,
+    ipcMain,
+    protocol,
+    shell,
+    dialog,
+    session,
+    clipboard,
+    nativeImage,
+} = require('electron');
+const Store = require('electron-store');
 const log = require('electron-log');
 const prompt = require('electron-prompt');
 const { autoUpdater } = require('electron-updater');
@@ -9,34 +19,29 @@ const DiscordRPC = require('discord-rpc');
 const os = require('os');
 const fetch = require('node-fetch');
 const tmi = require('tmi.js');
-// const appConfig = require('./config/main.json');
 
 const platformType = process.platform;
-const config = new store();
+const config = new Store();
+const devMode = config.get('devmode', false);
+const ClientID = '810350252023349248';
+let twitchToken = config.get('twitchToken', null);
+let splashWindow = null;
+let gameWindow = null;
+const isRPCEnabled = config.get('enableRPC', true);
 
-const devMode = config.get('devmode');
-
-log.info(`LaF v${app.getVersion()}${devMode ? '@DEV' : ''}\n    - electron@${process.versions.electron}\n    - nodejs@${process.versions.node}\n    - Chromium@${process.versions.chrome}`);
+log.info(`LaF v${app.getVersion()}${devMode ? '@DEV' : ''}`);
+log.info(`Electron: ${process.versions.electron}, Node.js: ${process.versions.node}, Chromium: ${process.versions.chrome}`);
 
 const wm = require('./js/util/wm');
 
-const ClientID = '810350252023349248';
-let twitchToken = config.get('twitchToken', null);
+// Remove potentially unsafe method
+delete nativeImage.createThumbnailFromPath;
 
-let splashWindow = null;
-let gameWindow = null;
-
-const isRPCEnabled = config.get('enableRPC', true);
-
-/* 初期化ブロック */
-
-// 脆弱性への対応: https://github.com/advisories/GHSA-mpjm-v997-c4h4
-delete require('electron').nativeImage.createThumbnailFromPath;
 if (!app.requestSingleInstanceLock()) {
-    log.error('Other process(es) are already existing. Quit. If you can\'t see the window, please kill all task(s).');
+    log.error('Another instance is already running. Exiting.');
     app.exit();
 }
-// カスタムプロトコルlaf://への対応(ローカルファイルへのアクセス用)
+
 protocol.registerSchemesAsPrivileged([{
     scheme: 'laf',
     privileges: { secure: true, corsEnabled: true },
@@ -44,26 +49,47 @@ protocol.registerSchemesAsPrivileged([{
 
 const langPack = require(config.get('lang', 'en_US') === 'ja_JP' ? './lang/ja_JP' : './lang/en_US');
 
-log.info(`UI Language: ${config.get('lang')}`);
+log.info(`UI Language: ${config.get('lang', 'en_US')}`);
 
 const initFlags = () => {
-	const chromiumFlags = [
-	['disable-frame-rate-limit', null, config.get('unlimitedFPS', true)],
-	['disable-gpu-vsync', null, config.get('unlimitedFPS', true)],
-	['disable-features', 'UsePreferredIntervalForVideo', config.get('unlimitedFPS', true)],
-	['disable-blink-features', 'ExperimentalIsInputPending', config.get('unlimitedFPS', true)],
-	['use-angle', config.get('angleType', 'default'), true],
-   	['in-process-gpu', null, platformType === 'win32' ? true : false],
-        ['autoplay-policy', 'no-user-gesture-required', config.get('autoPlay', true)],	
+    const chromiumFlags = [
+        ['disable-frame-rate-limit', null, config.get('unlimitedFPS', true)],
+        ['disable-gpu-vsync', null, config.get('unlimitedFPS', true)],
+        ['max-gum-fps', '9999', config.get('unlimitedFPS', true)],
+        ['disable-features', 'UsePreferredIntervalForVideo', config.get('unlimitedFPS', true)],
+        ['enable-features', 'DefaultPassthroughCommandDecoder', config.get('unlimitedFPS', true)],
+        ['enable-features', 'CanvasOopRasterization', config.get('unlimitedFPS', true)],
+        ['enable-features', 'BlinkCompositorUseDisplayThreadPriority', config.get('unlimitedFPS', true)],
+        ['enable-features', 'GpuUseDisplayThreadPriority', config.get('unlimitedFPS', true)],
+        ['disable-print-preview', null, config.get('unlimitedFPS', true)],
+        ['disable-metrics-repo', null, config.get('unlimitedFPS', true)],
+        ['disable-metrics', null, config.get('unlimitedFPS', true)],
+        ['disable-logging', null, config.get('unlimitedFPS', true)],
+        ['disable-breakpad', null, config.get('unlimitedFPS', true)],
+        ['disable-component-update', null, config.get('unlimitedFPS', true)],
+        ['disable-bundled-ppapi-flash', null, config.get('unlimitedFPS', true)],
+        ['disable-2d-canvas-clip-aa', null, config.get('unlimitedFPS', true)],
+        ['disable-hang-monitor', null, config.get('unlimitedFPS', true)],
+        ['webrtc-max-cpu-consumption-percentage', '100', config.get('unlimitedFPS', true)],
+        ['enable-highres-timer', null, config.get('unlimitedFPS', true)],
+        ['enable-quic', null, config.get('unlimitedFPS', true)],
+        ['quic-max-packet-length', '1460', config.get('unlimitedFPS', true)],
+        ['high-dpi-support', '1', config.get('unlimitedFPS', true)],
+        ['ignore-gpu-blocklist', null, config.get('unlimitedFPS', true)],
+        ['disable-background-timer-throttling', null, config.get('unlimitedFPS', true)],
+        ['disable-renderer-backgrounding', null, config.get('unlimitedFPS', true)],
+        ['use-angle', config.get('angleType', 'default'), true],
+        ['in-process-gpu', null, platformType === 'win32'],
+        ['autoplay-policy', 'no-user-gesture-required', config.get('autoPlay', true)],
+        ['disable-accelerated-2d-canvas', 'true', !config.get('acceleratedCanvas', true)],
     ];
-    chromiumFlags.forEach((f) => {
-        const isEnable = f[2] ? 'Enable' : 'Disable';
-        if (f[2]) {
-            if (f[1] === null) {
-                app.commandLine.appendSwitch(f[0]);
-            }
-            else {
-                app.commandLine.appendSwitch(f[0], f[1]);
+
+    chromiumFlags.forEach(([flag, value, enabled]) => {
+        if (enabled) {
+            if (value === null) {
+                app.commandLine.appendSwitch(flag);
+            } else {
+                app.commandLine.appendSwitch(flag, value);
             }
         }
     });
@@ -73,7 +99,7 @@ initFlags();
 const launchGame = () => {
     gameWindow = wm.launchGame();
     gameWindow.once('ready-to-show', () => {
-        splashWindow.destroy();
+        if (splashWindow) splashWindow.destroy();
         twitchLogin();
     });
 };
@@ -92,61 +118,53 @@ const initSplashWindow = () => {
             preload: path.join(__dirname, 'js/preload/splash.js'),
         },
     });
+
     const initAutoUpdater = async () => {
         autoUpdater.logger = log;
-        let updateCheck = null;
-        autoUpdater.logger = log;
-        // アップデート確認中
-        autoUpdater.on('checking-for-update', (i) => {
+        let updateCheckTimeout;
+
+        autoUpdater.on('checking-for-update', () => {
             splashWindow.webContents.send('status', langPack.updater.checking);
-            updateCheck = setTimeout(() => {
+            updateCheckTimeout = setTimeout(() => {
                 splashWindow.webContents.send('status', langPack.updater.error);
-                setTimeout(() => {
-                    launchGame();
-                }, 1000);
+                setTimeout(launchGame, 1000);
             }, 15000);
         });
-        // アップデートが存在するとき
-        autoUpdater.on('update-available', (i) => {
-            log.info(i);
-            if (updateCheck) clearTimeout(updateCheck);
-            splashWindow.webContents.send('status', langPack.updater.available + i.version);
+
+        autoUpdater.on('update-available', (info) => {
+            clearTimeout(updateCheckTimeout);
+            splashWindow.webContents.send('status', `${langPack.updater.available} ${info.version}`);
         });
-        // アップデートなしのとき
-        autoUpdater.on('update-not-available', (i) => {
-            log.info(i);
-            if (updateCheck) clearTimeout(updateCheck);
+
+        autoUpdater.on('update-not-available', () => {
+            clearTimeout(updateCheckTimeout);
             splashWindow.webContents.send('status', langPack.updater.uptodate);
-            setTimeout(() => {
-                launchGame();
-            }, 1000);
+            setTimeout(launchGame, 1000);
         });
-        // アップデートエラーのとき(大体はGitHubの障害で起こる)
-        autoUpdater.on('error', (e) => {
-            log.error(e);
-            if (updateCheck) clearTimeout(updateCheck);
-            splashWindow.webContents.send('status', langPack.updater.error + e.name);
-            setTimeout(() => {
-                launchGame();
-            }, 1000);
+
+        autoUpdater.on('error', (error) => {
+            log.error(error);
+            clearTimeout(updateCheckTimeout);
+            splashWindow.webContents.send('status', `${langPack.updater.error} ${error.name}`);
+            setTimeout(launchGame, 1000);
         });
-        // ダウンロード中
-        autoUpdater.on('download-progress', (i) => {
-            if (updateCheck) clearTimeout(updateCheck);
-            splashWindow.webContents.send('status', langPack.updater.progress.replace('{0}', Math.floor(i.percent)).replace('{1}', Math.floor(i.bytesPerSecond / 1000)));
+
+        autoUpdater.on('download-progress', (progress) => {
+            clearTimeout(updateCheckTimeout);
+            splashWindow.webContents.send('status', langPack.updater.progress.replace('{0}', Math.floor(progress.percent)).replace('{1}', Math.floor(progress.bytesPerSecond / 1000)));
         });
-        // ダウンロード完了
-        autoUpdater.on('update-downloaded', (i) => {
-            if (updateCheck) clearTimeout(updateCheck);
+
+        autoUpdater.on('update-downloaded', () => {
+            clearTimeout(updateCheckTimeout);
             splashWindow.webContents.send('status', langPack.updater.downloaded);
-            setTimeout(() => {
-                autoUpdater.quitAndInstall();
-            }, 3000);
+            setTimeout(() => autoUpdater.quitAndInstall(), 3000);
         });
-        autoUpdater.autoDownload = 'download';
+
+        autoUpdater.autoDownload = true;
         autoUpdater.allowPrerelease = devMode;
         autoUpdater.checkForUpdates();
     };
+
     splashWindow.removeMenu();
     splashWindow.loadFile(path.join(__dirname, 'html/splashWindow.html'));
     splashWindow.webContents.once('did-finish-load', () => {
@@ -155,28 +173,26 @@ const initSplashWindow = () => {
     });
 };
 
-// Twitchクライアントの初期化
 const initTwitchChat = () => {
-    if (!config.get('twitchAcc', null)) return;
+    const twitchAcc = config.get('twitchAcc', null);
+    if (!twitchAcc) return;
+
     log.info('Twitch Chatbot: Initializing...');
     const tclient = new tmi.Client({
         options: { debug: true },
         logger: log,
         identity: {
-            username: config.get('twitchAcc'),
+            username: twitchAcc,
             password: `oauth:${twitchToken}`,
         },
-        channels: [
-            config.get('twitchAcc'),
-        ],
+        channels: [twitchAcc],
     });
+
     tclient.connect().catch(log.error);
     tclient.on('message', (channel, tags, message, self) => {
         if (self || !config.get('enableLinkCmd', false) || !config.get('isUserLive', false)) return;
-        if (message.toLocaleLowerCase() === '!link') {
-            console.log('link');
+        if (message.toLowerCase() === '!link') {
             ipcMain.handleOnce('sendLink', (e, v) => {
-                console.log(v);
                 tclient.say(channel, `@${tags.username} ${v}`);
             });
             gameWindow.webContents.send('getLink');
@@ -184,282 +200,63 @@ const initTwitchChat = () => {
     });
 };
 
-// ログイン中のユーザーがLiveかどうか取得する
 const getUserIsLive = () => {
-    const method = 'GET';
-    const headers = {
-        'Authorization': `Bearer ${twitchToken}`,
-        'Client-ID': 'q9pn15rtycv6l9waebyyw99d70mh00',
-    };
-    fetch(`https://api.twitch.tv/helix/streams?user_login=${config.get('twitchAcc', null)}`, { method, headers })
-        .then(res => res.json())
-        .then(res => {
-            if (res.data.length === 0) return;
-            if (res.data[0].type === 'live') {
-                config.set('isUserLive', true);
-            }
-            else {
-                config.set('isUserLive', false);
-            }
-        })
-        .catch(log.error);
-};
-
-// Twitchユーザー情報取得
-const twitchLogin = () => {
-    if (!twitchToken) return;
-    const method = 'GET';
-    const headers = {
-        'Authorization': `Bearer ${twitchToken}`,
-        'Client-ID': 'q9pn15rtycv6l9waebyyw99d70mh00',
-    };
-    fetch('https://api.twitch.tv/helix/users', { method, headers })
-        .then(res => res.json())
-        .then(res => {
-            log.info(`Twitch Login: ${res.data[0].login}`);
-            config.set('twitchAcc', res.data[0].login);
-            twitchAcc = res.data[0].login;
-            config.set('twitchAccId', res.data[0].id);
-            gameWindow.webContents.send('twitchEvent', 'loggedIn');
-            config.set('twitchError', false);
-            setInterval(getUserIsLive, 10000);
-            initTwitchChat();
-        })
-        .catch(err => {
-            log.error('Twitch Login: Error');
-            log.error(err);
-            gameWindow.webContents.send('twitchEvent', 'loginErr');
-            config.set('twitchError', true);
-        });
-};
-
-DiscordRPC.register(ClientID);
-const rpc = new DiscordRPC.Client({ transport: 'ipc' });
-
-/* イベントハンドラー */
-// DiscordRPC
-// 準備完了
-rpc.on('ready', () => {
-    log.info('Discord RPC Ready');
-});
-
-// RPCの更新
-ipcMain.handle('RPC_SEND', (e, d) => {
-    if (rpc.user) {
-        rpc.setActivity(d);
-    }
-});
-
-// SplashWindow
-ipcMain.handle('getAppVersion', () => {
-    const version = app.getVersion();
-    return version;
-});
-
-// GameWindow
-// ユーザーストレージを削除
-ipcMain.handle('clearUserData', () => {
-    session.defaultSession.clearStorageData();
-    config.clear();
-    log.info('Cleared userdata.');
-});
-
-// リソスワのフォルダをエクスプローラーに表示
-ipcMain.handle('openSwapper', () => {
-    shell.showItemInFolder(path.join(app.getPath('documents'), '/LaFSwap'));
-});
-
-// アプリの再起動
-ipcMain.handle('restartClient', () => {
-    app.relaunch();
-    app.exit();
-});
-
-// サイトを表示
-ipcMain.handle('openInfo', () => {
-    shell.openExternal('https://laf.tokyo');
-});
-
-// ダイアログの表示
-ipcMain.handle('showDialog', async (e, accName) => {
-    const answer = await dialog.showMessageBox(gameWindow, {
-        title: 'LaF',
-        message: langPack.altManager.deleteAcc.confirm.replace('%accName%', accName),
-        buttons: [langPack.dialog.ok, langPack.dialog.cancel],
-    });
-    return answer.response;
-});
-
-// プロンプトの表示
-ipcMain.on('showPrompt', (e, message, defaultValue) => {
-    prompt({
-            title: 'LaF',
-            label: message,
-            value: defaultValue,
-            inputAttrs: {
-                type: 'text',
-            },
-            type: 'input',
-            alwaysOnTop: true,
-            icon: path.join(__dirname, 'img/icon.ico'),
-            skipTaskbar: true,
-            buttonLabels: {
-                ok: langPack.dialog.ok,
-                cancel: langPack.dialog.cancel,
-            },
-            width: 400,
-            height: 200,
-            customStylesheet: path.join(__dirname, 'css/prompt.css'),
-        })
+    fetch(`https://api.twitch.tv/helix/streams?user_login=${config.get('twitchAcc', null)}`, {
+        headers: {
+            Authorization: `Bearer ${twitchToken}`,
+            'Client-ID': ClientID,
+        },
+    })
+        .then((r) => r.json())
         .then((r) => {
-            if (r === null) {
-                log.info('showPrompt: User Cancelled.');
-                e.returnValue = null;
-            }
-            else {
-                log.info(r);
-                e.returnValue = r;
+            if (r.data[0]) {
+                config.set('isUserLive', true);
+                log.info('Twitch: User is LIVE');
+                if (config.get('twitchOverlay', false)) gameWindow.webContents.send('twitchOnline', r.data[0]);
+            } else {
+                config.set('isUserLive', false);
+                log.info('Twitch: User is OFFLINE');
+                gameWindow.webContents.send('twitchOffline');
             }
         })
-        .catch(console.error);
-});
+        .catch((err) => log.error('Twitch API:', err));
+};
 
-// ファイルを開く
-ipcMain.handle('openFileDialog', (e) => {
-    const cssPath = dialog.showOpenDialogSync(null, {
-        properties: ['openFile'],
-        title: 'LaF: CSS File Loader',
-        defaultPath: '.',
-        filters: [
-            { name: 'CSS File', extensions: ['txt', 'css'] },
-        ],
-    });
-    if (cssPath !== undefined) {
-        config.set('userCSSPath', cssPath[0]);
-    }
-    return cssPath;
-});
-
-// アプリ終了
-ipcMain.on('exitClient', () => {
-    app.exit();
-});
-
-// PCの情報をコピー
-ipcMain.on('copyPCInfo', () => {
-    const versions = `LaF v${app.getVersion()}${devMode ? '@DEV' : ''}\n    - electron@${process.versions.electron}\n    - nodejs@${process.versions.node}\n    - Chromium@${process.versions.chrome}`;
-    const uiLang = `UI Language: ${config.get('lang')}`;
-    const osRelease = os.release();
-    let osVersion = '';
-    if (osRelease.startsWith('6.1')) osVersion = 'Windows 7';
-    if (osRelease.startsWith('6.2')) osVersion = 'Windows 8';
-    if (osRelease.startsWith('6.3')) osVersion = 'Windows 8.1';
-    if (osRelease.startsWith('10') && Number(osRelease.split('.')[2]) < 22000) osVersion = 'Windows 10';
-    if (osRelease.startsWith('10') && Number(osRelease.split('.')[2]) >= 22000) osVersion = 'Windows 11';
-    const osInfoTxt = `OS: ${osVersion} / ${os.release()} ${os.arch()}`;
-    // ハードウェア情報
-    const cpuInfo = os.cpus();
-    const cpuInfoTxt = `CPU: ${cpuInfo[0].model.trim()}@${Math.round((cpuInfo[0].speed / 1000) * 100) / 100}GHz`;
-    const memInfoTxt = `RAM: ${Math.round(((os.totalmem - os.freemem) / 1073741824) * 100) / 100}GB / ${Math.round((os.totalmem / 1073741824) * 100) / 100}GB`;
-    const memUsageTxt = `RAM Usage: ${Math.round((process.memoryUsage().rss / 1048576) * 100) / 100}MB`;
-    const { exec } = require('child_process');
-    let gpuInfoTxt = '';
-    if (platformType === 'win32') {
-        exec('wmic path win32_VideoController get name', (error, stdout, stderr) => {
-            if (error || stderr) {
-                gpuInfoTxt = 'Error in exec process.';
+const refreshTwitchToken = () => {
+    fetch(`https://id.twitch.tv/oauth2/token?client_id=${ClientID}&client_secret=${config.get('clientSecret', '')}&grant_type=refresh_token&refresh_token=${config.get('refreshToken', '')}`, {
+        method: 'POST',
+    })
+        .then((r) => r.json())
+        .then((r) => {
+            if (r.access_token && r.refresh_token) {
+                config.set('twitchToken', r.access_token);
+                config.set('refreshToken', r.refresh_token);
+                twitchToken = r.access_token;
+                getUserIsLive();
+            } else {
+                log.error('Twitch API: Could not refresh token');
             }
-            else {
-                const output = stdout.split('\r\r\n');
-                output.shift();
-                let c = 0;
-                output.forEach((v) => {
-                    if (v !== '') {
-                        gpuInfoTxt += `GPU${c}: ${v.trim()}`;
-                        if (c + 1 !== output.length) {
-                            gpuInfoTxt += '\n';
-                        }
-                        c += 1;
-                    }
-                });
-            }
-            const sysInfo = '=====Client Information=====\n' + versions + '\n' + '\n' + uiLang + '\n' + memUsageTxt + '\n=====System Information=====\n' + osInfoTxt + '\n' + cpuInfoTxt + '\n' + memInfoTxt + '\n' + gpuInfoTxt;
-            clipboard.writeText(sysInfo);
-        });
+        })
+        .catch((err) => log.error('Twitch API:', err));
+};
+
+const twitchLogin = () => {
+    if (twitchToken) {
+        getUserIsLive();
+        setInterval(refreshTwitchToken, 7 * 24 * 60 * 60 * 1000); // Refresh token weekly
+        initTwitchChat();
     }
-    else {
-        const sysInfo = '=====Client Information=====\n' + versions + '\n' + '\n' + uiLang + '\n' + memUsageTxt + '\n=====System Information=====\n' + osInfoTxt + '\n' + cpuInfoTxt + '\n' + memInfoTxt + '\n' + 'GPU: Not Supported';
-        clipboard.writeText(sysInfo);
-    }
+};
+
+app.on('ready', initSplashWindow);
+app.on('window-all-closed', () => app.quit());
+
+app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) initSplashWindow();
 });
 
-// ログファイルのフォルダをエクスプローラーで表示
-ipcMain.on('openLogFolder', () => {
-    shell.showItemInFolder(path.join(app.getPath('appData'), 'laf/logs'));
-});
-
-// Twitchにログイン
-ipcMain.handle('linkTwitch', () => {
-    const express = require('express');
-    const oauthURL = 'https://id.twitch.tv/oauth2/authorize?client_id=q9pn15rtycv6l9waebyyw99d70mh00&redirect_uri=http://localhost:65535&response_type=token&scope=chat:read+chat:edit+channel:moderate+whispers:read+whispers:edit+channel_editor';
-    const eapp = express();
-    let server = null;
-    eapp.get('/', (req, res) => {
-        res.sendFile(path.join(__dirname, 'html/twitch.html'));
+ipcMain.handle('showOpenDialog', async () => {
+    return dialog.showOpenDialogSync({
+        properties: ['openFile', 'openDirectory', 'multiSelections'],
     });
-    eapp.get('/token', (req, res) => {
-        config.set('twitchToken', req.query.token);
-        twitchToken = req.query.token;
-        log.info('Received token. Server will be closed.');
-        twitchLogin(true);
-        setTimeout(() => server.close(), 1500);
-    });
-    server = eapp.listen('65535', () => {
-        log.info('HTTP Server started. It will close after 10 mins has passed.');
-    });
-    shell.openExternal(oauthURL);
-});
-
-// App
-app.on('ready', () => {
-	const filter = {
-    urls: ['*://*.pollfish.com/*',
-			'*://www.paypalobjects.com/*',
-			'*://fran-cdn.frvr.com/prebid*',
-			'*://fran-cdn.frvr.com/gpt_*',
-			'*://c.amazon-adsystem.com/*',
-			'*://fran-cdn.frvr.com/pubads_*',
-			'*://platform.twitter.com/*',
-			'*://cookiepro.com/*',
-			'*://*.cookiepro.com/*',
-			'*://www.googletagmanager.com/*',
-			'*://storage.googleapis.com/pollfish_production/*',
-			'*://krunker.io/libs/frvr-channel-web*',
-			'*://apis.google.com/js/platform.js',
-			'*://imasdk.googleapis.com/*'],
-  };
-
-  session.defaultSession.webRequest.onBeforeRequest(filter, (details, callback) => {
-    // Cancel the request to block the ad
-    callback({ cancel: true });
-  });
-    protocol.registerFileProtocol('laf', (request, callback) => callback(decodeURI(request.url.replace(/^laf:\//, ''))));
-    if (isRPCEnabled) {
-        let loggedIn;
-        try {
-            rpc.login({ clientId: ClientID });
-            loggedIn = true;
-        }
-        catch (e) {
-            console.error(e);
-        }
-        if (loggedIn) {
-            log.info('Discord Login OK');
-        }
-    }
-    initSplashWindow();
-});
-
-app.on('quit', () => {
-    config.set('isUserLive', false);
 });
